@@ -55,6 +55,11 @@ function parsePPT1(buffer: ArrayBuffer) {
   return { count, positions, luma };
 }
 
+// Portrait globe size: 0.6 on a typical phone, shrunk on very narrow screens so the globe (and the
+// text ring around it) never exceeds ~87% of the screen width. Landscape is unchanged.
+const globeScaleFor = (width: number, height: number) =>
+  width < height ? 0.6 * Math.min(1, 1.587 * (width / height)) : 1;
+
 export const ParticleScene: React.FC<ParticleSceneProps> = ({
   className = 'particle-scene',
   src = '/portrait.bin',
@@ -299,7 +304,7 @@ export const ParticleScene: React.FC<ParticleSceneProps> = ({
             uGlowRadius: { value: glowRadius },
             uAspect: { value: rect.width / rect.height },
             uIsPortrait: { value: isPortrait ? 1 : 0 },
-            uGlobeScale: { value: isPortrait ? 0.6 : 1 },
+            uGlobeScale: { value: globeScaleFor(rect.width, rect.height) },
             uGlobeCentreY: { value: centreY },
             uItalyScale: { value: isPortrait ? 0.7 : 1 },
             uItalyCentreY: { value: italyCentreY }
@@ -574,7 +579,7 @@ export const ParticleScene: React.FC<ParticleSceneProps> = ({
           material.uniforms.uAspect.value = cRect.width / cRect.height;
           material.uniforms.uIsPortrait.value = portrait ? 1 : 0;
           material.uniforms.uRingRadius.value = 0.07 * spanX;
-          material.uniforms.uGlobeScale.value = portrait ? 0.6 : 1;
+          material.uniforms.uGlobeScale.value = globeScaleFor(cRect.width, cRect.height);
           material.uniforms.uItalyScale.value = portrait ? 0.7 : 1;
 
           camera.aspect = cRect.width / cRect.height;
