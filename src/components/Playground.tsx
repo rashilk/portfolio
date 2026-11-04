@@ -296,6 +296,20 @@ export const Playground: React.FC<PlaygroundProps> = ({ projects, onProjectSelec
     if (!section) return;
 
     let ticking = false;
+    let pageTop = 0;
+    let pageHeight = 0;
+    const measureLayout = () => {
+      const r = section.getBoundingClientRect();
+      pageTop = r.top + window.scrollY;
+      pageHeight = r.height;
+    };
+    measureLayout();
+    // the section height is set from JS and the sections above resize too, so refresh when the page does
+    const resizeObserver = new ResizeObserver(() => {
+      measureLayout();
+      requestTick();
+    });
+    resizeObserver.observe(document.body);
     let targetX = 0;
     let trackX: number | null = null;
     let glideId = 0;
@@ -323,9 +337,11 @@ export const Playground: React.FC<PlaygroundProps> = ({ projects, onProjectSelec
     const onScroll = () => {
       ticking = false;
       const { revealSpan, startX, maxTravel } = calculateTravel(projects.length);
-      const bounds = section.getBoundingClientRect();
+      // cached position (see measureLayout) instead of a layout read on every scroll frame
+      const top = pageTop - window.scrollY;
+      const bounds = { top, bottom: top + pageHeight };
       const inView = bounds.top < revealSpan && bounds.bottom > 0;
-      const workReady = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--work-ready') || '0');
+      const workReady: number = (window as any).__workReady ?? 0;
       // Keep the project cards hidden until the "How I work" sentence has faded out
       const stageVisible = inView && workReady <= 0.02;
 
@@ -382,6 +398,7 @@ export const Playground: React.FC<PlaygroundProps> = ({ projects, onProjectSelec
 
     return () => {
       cancelAnimationFrame(glideId);
+      resizeObserver.disconnect();
       window.removeEventListener('scroll', requestTick);
       window.removeEventListener('resize', onScroll);
       (window as any).__playgroundClosing = 0;

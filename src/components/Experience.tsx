@@ -46,10 +46,20 @@ export const Experience: React.FC = () => {
     let lastTime = performance.now();
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+    // Section position is cached (page coordinates) and only re-measured when the page size changes,
+    // so the per-frame loop never forces a layout.
+    let pageTop = 0;
+    let pageHeight = 0;
+    const measureLayout = () => {
+      const r = section.getBoundingClientRect();
+      pageTop = r.top + window.scrollY;
+      pageHeight = r.height;
+    };
+
     const measure = () => {
-      const bounds = section.getBoundingClientRect();
-      targetS = LEAD_IN * window.innerHeight - bounds.top;
-      inView = bounds.top < window.innerHeight && bounds.bottom > 0;
+      const top = pageTop - window.scrollY;
+      targetS = LEAD_IN * window.innerHeight - top;
+      inView = top < window.innerHeight && top + pageHeight > 0;
     };
 
     const render = (now: number) => {
@@ -79,7 +89,7 @@ export const Experience: React.FC = () => {
       const total = travel();
       // t runs 0..count+TAIL; role k takes over from role k-1 around t = k + 0.5
       const t = clamp01(shownS / total) * (count + TAIL_STEPS);
-      const sentenceGone = 1 - parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--work-ready') || '0');
+      const sentenceGone = 1 - ((window as any).__workReady ?? 0);
 
       // the last role fades out across the tail, after its hold
       const exit = 1 - smooth((shownS - total - 0.1 * h) / (0.6 * h));
@@ -106,18 +116,24 @@ export const Experience: React.FC = () => {
 
     const onResize = () => {
       layout();
+      measureLayout();
       measure();
     };
 
     layout();
+    measureLayout();
     measure();
     shownS = targetS;
     rafId = requestAnimationFrame(render);
     window.addEventListener('resize', onResize);
+    // sections above/below resize themselves from JS (e.g. the project track), which moves this one
+    const resizeObserver = new ResizeObserver(() => measureLayout());
+    resizeObserver.observe(document.body);
 
     return () => {
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', onResize);
+      resizeObserver.disconnect();
     };
   }, [count, items]);
 

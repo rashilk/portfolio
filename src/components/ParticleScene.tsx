@@ -330,6 +330,18 @@ export const ParticleScene: React.FC<ParticleSceneProps> = ({
         let contactOffset = 0;
         let contactSmoothed = 0;
         let closingSmoothed = 0;
+        let lastGlobeOn: boolean | null = null;
+        let italyReady = 0;
+
+        // Only touch the root element's custom properties when a value actually changes: each write
+        // invalidates styles for the whole page, so doing it every frame made every scroll stage laggy.
+        const rootVarCache: Record<string, string> = {};
+        const setRootVar = (name: string, value: number) => {
+          const next = value.toFixed(3);
+          if (rootVarCache[name] === next) return;
+          rootVarCache[name] = next;
+          document.documentElement.style.setProperty(name, next);
+        };
         let isAtContactBottom = false;
         let lastContactMountId = -1;
 
@@ -342,9 +354,9 @@ export const ParticleScene: React.FC<ParticleSceneProps> = ({
         let pointerTargetActive = 0;
 
         const onPointerMove = (e: PointerEvent) => {
-          const cRect = container.getBoundingClientRect();
-          const px = (e.clientX - cRect.left) / cRect.width;
-          const py = (e.clientY - cRect.top) / cRect.height;
+          // the scene container is fixed to the viewport, so no layout read is needed
+          const px = e.clientX / window.innerWidth;
+          const py = e.clientY / window.innerHeight;
           if (px < 0 || px > 1 || py < 0 || py > 1) {
             pointerTargetActive = 0;
             return;
@@ -413,20 +425,34 @@ export const ParticleScene: React.FC<ParticleSceneProps> = ({
           const morph3 = m3Norm * m3Norm * (3 - 2 * m3Norm);
           material.uniforms.uMorph3.value = morph3;
 
-          document.documentElement.style.setProperty('--portrait-morph', morph1.toFixed(4));
+          setRootVar('--portrait-morph', morph1);
 
           const globeReady = THREE.MathUtils.clamp((morph1 - 0.85) / 0.15, 0, 1) * (1 - THREE.MathUtils.clamp(morph2 / 0.15, 0, 1));
-          document.documentElement.style.setProperty('--globe-ready', globeReady.toFixed(4));
+          setRootVar('--globe-ready', globeReady);
+          // hide and pause the spinning ring while the globe isn't on screen
+          const globeOn = globeReady > 0.001;
+          if (globeOn !== lastGlobeOn) {
+            lastGlobeOn = globeOn;
+            document.documentElement.dataset.globe = globeOn ? 'on' : 'off';
+          }
 
-          const italyReady = THREE.MathUtils.clamp((morph2 - 0.99) / 0.01, 0, 1) * (1 - THREE.MathUtils.clamp((morph3 - 0.85) / 0.15, 0, 1));
-          document.documentElement.style.setProperty('--italy-ready', italyReady.toFixed(4));
+          // The map label fades in while the map is still forming and out as the next morph starts,
+          // instead of only inside a narrow fully-formed window, which a quick touch swipe skips over.
+          const italyTarget =
+            THREE.MathUtils.clamp((morph2 - 0.6) / 0.3, 0, 1) * (1 - THREE.MathUtils.clamp((morph3 - 0.1) / 0.3, 0, 1));
+          // plus a short time-based ease so even a fast pass shows it for a few frames
+          italyReady += (italyTarget - italyReady) * (prefersReducedMotion ? 1 : 1 - Math.exp(-dt / 0.15));
+          if (Math.abs(italyTarget - italyReady) < 0.001) italyReady = italyTarget;
+          setRootVar('--italy-ready', italyReady);
 
           const workSlideOver = Math.max(0, currentScrollY / window.innerHeight - (morphStart3 + morphDistance3));
           const workSlide = THREE.MathUtils.clamp(workSlideOver / Math.max(workSlideDistance, 0.001), 0, 1);
           material.uniforms.uWorkSlide.value = workSlide;
 
           const workReady = THREE.MathUtils.clamp((morph3 - 0.85) / 0.15, 0, 1) * (1 - THREE.MathUtils.clamp((workSlide - 0.85) / 0.15, 0, 1));
-          document.documentElement.style.setProperty('--work-ready', workReady.toFixed(4));
+          setRootVar('--work-ready', workReady);
+          // read by the Experience/Playground sections so they don't query computed styles per frame
+          (window as any).__workReady = workReady;
 
           const playgroundClosingTarget = (window as any).__playgroundClosing ?? 0;
           closingSmoothed +=

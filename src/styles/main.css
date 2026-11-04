@@ -1651,3 +1651,28 @@ html {
   .experience__highlights { gap: 0.4em; margin-top: 0.8em; }
   .experience__meta { margin-bottom: 0.6em; }
 }
+
+/* Pause and hide the spinning ring whenever the globe is not on screen */
+html[data-globe="off"] .world__ring {
+  visibility: hidden;
+  animation-play-state: paused;
+}
+
+/* These follow a CSS variable the scene already eases every frame, so an extra transition only makes\n   them trail behind the scroll. */
+.italy__label,
+.howIWork__line {
+  transition: none;
+}
+
+/* Pin the map label to the screen (the map itself is fixed), so it can't scroll away mid-swipe */
+.italy__label {
+  position: fixed;
+  z-index: 2;
+}
+
+@media (orientation: portrait) {
+  .italy__label {
+    top: 18%;
+    right: 5vw;
+  }
+}
